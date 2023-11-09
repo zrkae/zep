@@ -220,7 +220,9 @@ public:
     Elf(const Elf& other) = delete;
     Elf operator=(const Elf& other) = delete;
 
-    Elf(const char *file_path);
+    // no std::string view because it is not guaranteed to be null terminated and we need a c-string.
+    Elf(const std::string& file_path);
+    Elf(const char* file_path);
     Elf(void *ptr, size_t size);
 
     ~Elf();

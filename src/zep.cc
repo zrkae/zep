@@ -51,7 +51,9 @@ void Elf::elf_common_init()
     init_symtab_info();
 }
 
-Elf::Elf(const char *file_path)
+Elf::Elf(const std::string& file_path): Elf(file_path.c_str()) {}
+
+Elf::Elf(const char* file_path)
 {
     int fd = open(file_path, O_RDONLY);
     if (fd < 0)
