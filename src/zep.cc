@@ -198,6 +198,16 @@ std::optional<std::string_view> Symbol::str_name(const Elf& elf) const
     return elf.str_symbol(this->name);
 }
 
+SymbolBinding Symbol::binding() const
+{
+    return SymbolBinding(info >> 4);
+}
+
+SymbolType Symbol::type() const
+{
+    return SymbolType(info & 0x0F);
+}
+
 std::optional<std::string_view> Elf::str_section(uint32_t off) const
 {
     SectionHeader* strtab = this->sections().at(this->header->shstrndx);

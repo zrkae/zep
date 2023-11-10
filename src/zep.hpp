@@ -189,6 +189,28 @@ static_assert(sizeof(SectionHeader) == 0x40);
 // -------------
 // Symbols 
 
+enum SymbolBinding {
+    STB_LOCAL = 0,
+    STB_GLOBAL = 1,
+    STB_WEAK = 2,
+    STB_LOOS = 10,
+    STB_HIOS = 12,
+    STB_LOPROC = 13,
+    STB_HIPROC = 15
+};
+
+enum SymbolType {
+    STT_NOTYPE = 0,
+    STT_OBJECT = 1,
+    STT_FUNC = 2,
+    STT_SECTION = 3,
+    STT_FILE = 4,
+    STT_LOOS = 10,
+    STT_HIOS = 12,
+    STT_LOPROC = 13,
+    STT_HIPROC = 15
+};
+
 struct Symbol {
     uint32_t name; // offset into string table
     unsigned char info; // Type and Binding attributes
@@ -198,9 +220,12 @@ struct Symbol {
     uint64_t size;
 
     std::optional<std::string_view> str_name(const Elf& elf) const; // this.name -> string from string table
+    SymbolBinding binding() const;
+    SymbolType type() const;
 
     static Symbol *from_addr(void *addr);
 };
+static_assert(sizeof(Symbol) == 0x18);
 
 // -------------
 // TODO: Dynamic  
