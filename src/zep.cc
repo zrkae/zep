@@ -245,4 +245,23 @@ void Elf::init_symtab_info() noexcept
     m_symtab_info = std::make_pair(it->offset, it->size);
 }
 
+
+void *Elf::vaddr_to_fileptr(void *addr) const
+{
+    uint64_t iaddr = (uint64_t)addr;
+    auto it = std::find_if(prog_headers().begin(), prog_headers().end(), 
+                           [iaddr](const ProgramHeader& ph) { return iaddr > ph.vaddr && iaddr < (ph.vaddr + ph.memsz); });
+
+    if (it == prog_headers().end())
+        return nullptr; 
+
+    return m_fileptr + iaddr - it->vaddr + it->offset;
+}
+
+void *Elf::fileoffset_to_vaddr(void *) const
+{
+    assert(0 && "TODO: Not implemented");
+}
+
+
 } // namespace elf

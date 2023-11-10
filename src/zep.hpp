@@ -309,6 +309,9 @@ public:
 
     // returns the pointer to underlying mapped memory for the ELF file
     unsigned char *fileptr() const { return m_fileptr; }
+
+    void *vaddr_to_fileptr(void *addr) const;
+    void *fileoffset_to_vaddr(void *fileptr) const;
 private:
     unsigned char *m_fileptr;
     size_t m_filesize;
