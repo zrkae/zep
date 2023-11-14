@@ -12,7 +12,6 @@
 
 namespace elf {
 
-// TODO: maybe these functions should do bounds checking on the addr?
 ElfHeader* ElfHeader::from_addr(void *addr)
 {
     return reinterpret_cast<ElfHeader*>(addr);
@@ -85,7 +84,7 @@ Elf::~Elf()
 }
 
 // ElfIterator specializations
-// !TODO: add checks like for the Symbol specialization for others (they are not guaranteed to be present in the binarty I think)
+// !TODO: add checks like for the Symbol specialization for others (they are not guaranteed to be present in the binary I think)
 //        Or maybe just return empty iterator for all of them? idk
 template <typename T>
 using ElfIterator = Elf::ElfIterator<T>;
@@ -109,7 +108,7 @@ ElfIterator<ProgramHeader>::Iterator ElfIterator<ProgramHeader>::end() const
 }
 
 template<>
-ProgramHeader* ElfIterator<ProgramHeader>::at(size_t idx)
+ProgramHeader* ElfIterator<ProgramHeader>::at(size_t idx) const
 {
     if (idx > m_outer.header->shnum)
         return nullptr; 
@@ -138,7 +137,7 @@ ElfIterator<SectionHeader>::Iterator ElfIterator<SectionHeader>::end() const
 }
 
 template<>
-SectionHeader* ElfIterator<SectionHeader>::at(size_t idx)
+SectionHeader* ElfIterator<SectionHeader>::at(size_t idx) const
 {
     if (idx > m_outer.header->shnum)
         return nullptr;
@@ -173,7 +172,7 @@ ElfIterator<Symbol>::Iterator ElfIterator<Symbol>::end() const
 }
 
 template<>
-Symbol* ElfIterator<Symbol>::at(size_t idx)
+Symbol* ElfIterator<Symbol>::at(size_t idx) const
 {
     if (!m_outer.m_symtab_info)
         throw std::runtime_error("Attempted to iterate over symbols on an executable without a symbol table! (is it stripped?)");
@@ -200,12 +199,12 @@ std::optional<std::string_view> Symbol::str_name(const Elf& elf) const
 
 SymbolBinding Symbol::binding() const
 {
-    return SymbolBinding(info >> 4);
+    return SymbolBinding(this->info >> 4);
 }
 
 SymbolType Symbol::type() const
 {
-    return SymbolType(info & 0x0F);
+    return SymbolType(this->info & 0x0F);
 }
 
 std::optional<std::string_view> Elf::str_section(uint32_t off) const
@@ -262,6 +261,5 @@ void *Elf::fileoffset_to_vaddr(void *) const
 {
     assert(0 && "TODO: Not implemented");
 }
-
 
 } // namespace elf

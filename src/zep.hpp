@@ -94,7 +94,7 @@ struct ElfHeader {
     uint16_t shnum; // number of section header entries
     uint16_t shstrndx; // the index of the section header entry containing ascii encoded section names
 
-    static ElfHeader *from_addr(void *addr);
+    [[nodiscard]] static ElfHeader *from_addr(void *addr);
 };
 static_assert(sizeof(ElfHeader) == 0x40);
 
@@ -131,7 +131,7 @@ struct ProgramHeader {
     uint64_t memsz; // size in memory
     uint64_t align;
 
-    static ProgramHeader *from_addr(void *addr);
+    [[nodiscard]] static ProgramHeader *from_addr(void *addr);
 };
 static_assert(sizeof(ProgramHeader) == 0x38);
 
@@ -180,9 +180,9 @@ struct SectionHeader {
     uint64_t addralign;
     uint64_t entsize;
 
-    std::optional<std::string_view> str_name(const Elf& elf) const; // this.name -> string from string table
+    [[nodiscard]] std::optional<std::string_view> str_name(const Elf& elf) const; // this.name -> string from string table
     
-    static SectionHeader *from_addr(void *addr);
+    [[nodiscard]] static SectionHeader *from_addr(void *addr);
 };
 static_assert(sizeof(SectionHeader) == 0x40);
 
@@ -219,11 +219,11 @@ struct Symbol {
     uint64_t value;
     uint64_t size;
 
-    std::optional<std::string_view> str_name(const Elf& elf) const; // this.name -> string from string table
-    SymbolBinding binding() const;
-    SymbolType type() const;
+    [[nodiscard]] std::optional<std::string_view> str_name(const Elf& elf) const; // this.name -> string from string table
+    [[nodiscard]] SymbolBinding binding() const;
+    [[nodiscard]] SymbolType type() const;
 
-    static Symbol *from_addr(void *addr);
+    [[nodiscard]] static Symbol *from_addr(void *addr);
 };
 static_assert(sizeof(Symbol) == 0x18);
 
@@ -294,7 +294,7 @@ public:
         Iterator begin() const;
         Iterator end() const;
 
-        ValueType* at(size_t idx);
+        [[nodiscard]] ValueType* at(size_t idx) const;
     private:
         const Elf& m_outer;
     };
@@ -304,14 +304,14 @@ public:
     ElfIterator<Symbol> symbols() const;
 
     // these functions return the string corresponding to offset `off` in the section or symbol string table
-    std::optional<std::string_view> str_section(uint32_t off) const;
-    std::optional<std::string_view> str_symbol(uint32_t off) const;
+    [[nodiscard]] std::optional<std::string_view> str_section(uint32_t off) const;
+    [[nodiscard]] std::optional<std::string_view> str_symbol(uint32_t off) const;
 
     // returns the pointer to underlying mapped memory for the ELF file
-    unsigned char *fileptr() const { return m_fileptr; }
+    [[nodiscard]] unsigned char *fileptr() const { return m_fileptr; }
 
-    void *vaddr_to_fileptr(void *addr) const;
-    void *fileoffset_to_vaddr(void *fileptr) const;
+    [[nodiscard]] void *vaddr_to_fileptr(void *addr) const;
+    [[nodiscard]] void *fileoffset_to_vaddr(void *fileptr) const;
 private:
     unsigned char *m_fileptr;
     size_t m_filesize;
@@ -331,12 +331,11 @@ private:
 class invalid_magic : std::exception {
 public:
     invalid_magic(const std::array<unsigned char, 4>& magic)
-    {
-        m_msg = std::format("Invalid magic: [{:x}, {:x}, {:x}, {:x}]", 
-                               magic[0], magic[1], magic[2], magic[3]);
-    };
+    : m_msg(std::format("Invalid magic: [{:x}, {:x}, {:x}, {:x}]", 
+                               magic[0], magic[1], magic[2], magic[3])) {};
 
-    virtual const char *what() const noexcept {
+    virtual const char *what() const noexcept 
+    {
         return m_msg.c_str();
     };
 private:
