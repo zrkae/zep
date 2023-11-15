@@ -47,7 +47,19 @@ void Elf::elf_common_init()
         throw std::runtime_error("Non-64bit elf files are not supported yet."); 
     }
 
-    init_symtab_info();
+    for (const SectionHeader& sh : sections) {
+        if (sh.str_name(*this) == ".strtab") {
+            m_strtab = {
+                .offset = sh.offset,
+                .size = sh.size,
+            };
+        } else if (sh.type == SHT_SYMTAB) {
+            symbols.m_symtab = {
+                .offset = sh.offset,
+                .size = sh.size,
+            };
+        }
+    }
 }
 
 Elf::Elf(const std::string& file_path): Elf(file_path.c_str()) {}
@@ -83,32 +95,23 @@ Elf::~Elf()
     munmap(m_fileptr, m_filesize);
 }
 
-// ElfIterator specializations
+// Iterators for the Elf class
 // !TODO: add checks like for the Symbol specialization for others (they are not guaranteed to be present in the binary I think)
 //        Or maybe just return empty iterator for all of them? idk
-template <typename T>
+template<typename T>
 using ElfIterator = Elf::ElfIterator<T>;
 
-// ProgramHeader iterator
-ElfIterator<ProgramHeader> Elf::prog_headers() const
+ElfIterator<ProgramHeader> Elf::ProgramHeaderInfo::begin() const
 {
-    return ElfIterator<ProgramHeader>(*this);
+    return ElfIterator(ProgramHeader::from_addr(m_outer.m_fileptr + m_outer.header->phoff));
 }
 
-template<> 
-ElfIterator<ProgramHeader>::Iterator ElfIterator<ProgramHeader>::begin() const
+ElfIterator<ProgramHeader> Elf::ProgramHeaderInfo::end() const
 {
-    return Iterator(ProgramHeader::from_addr(m_outer.m_fileptr + m_outer.header->phoff));
+    return ElfIterator(ProgramHeader::from_addr(m_outer.m_fileptr + m_outer.header->phoff) + m_outer.header->phnum);
 }
 
-template<> 
-ElfIterator<ProgramHeader>::Iterator ElfIterator<ProgramHeader>::end() const
-{
-    return Iterator(ProgramHeader::from_addr(m_outer.m_fileptr + m_outer.header->phoff) + m_outer.header->phnum);
-}
-
-template<>
-ProgramHeader* ElfIterator<ProgramHeader>::at(size_t idx) const
+ProgramHeader* Elf::ProgramHeaderInfo::at(size_t idx) const
 {
     if (idx > m_outer.header->shnum)
         return nullptr; 
@@ -118,26 +121,18 @@ ProgramHeader* ElfIterator<ProgramHeader>::at(size_t idx) const
     ); 
 }
 
-// SectionHeader iterator
-ElfIterator<SectionHeader> Elf::sections() const
+// SectionInfo
+ElfIterator<SectionHeader> Elf::SectionInfo::begin() const
 {
-    return ElfIterator<SectionHeader>(*this);
+    return ElfIterator(SectionHeader::from_addr(m_outer.m_fileptr + m_outer.header->shoff));
 }
 
-template<> 
-ElfIterator<SectionHeader>::Iterator ElfIterator<SectionHeader>::begin() const
+ElfIterator<SectionHeader> Elf::SectionInfo::end() const
 {
-    return Iterator(SectionHeader::from_addr(m_outer.m_fileptr + m_outer.header->shoff));
+    return ElfIterator(SectionHeader::from_addr(m_outer.m_fileptr + m_outer.header->shoff) + m_outer.header->shnum);
 }
 
-template<> 
-ElfIterator<SectionHeader>::Iterator ElfIterator<SectionHeader>::end() const
-{
-    return Iterator(SectionHeader::from_addr(m_outer.m_fileptr + m_outer.header->shoff) + m_outer.header->shnum);
-}
-
-template<>
-SectionHeader* ElfIterator<SectionHeader>::at(size_t idx) const
+SectionHeader* Elf::SectionInfo::at(size_t idx) const
 {
     if (idx > m_outer.header->shnum)
         return nullptr;
@@ -147,42 +142,54 @@ SectionHeader* ElfIterator<SectionHeader>::at(size_t idx) const
     ); 
 }
 
-// Symbol iterator
-ElfIterator<Symbol> Elf::symbols() const
+std::optional<std::string_view> Elf::str_section(uint32_t off) const
 {
-    return ElfIterator<Symbol>(*this);
+    SectionHeader* strtab = this->sections.at(this->header->shstrndx);
+    if (!strtab)
+        return std::nullopt;
+
+    assert(strtab->type == SectionType::SHT_STRTAB);
+
+    const char *str = reinterpret_cast<const char*>(this->m_fileptr + strtab->offset + off);
+    return std::string_view(str);
 }
 
-template<>
-ElfIterator<Symbol>::Iterator ElfIterator<Symbol>::begin() const
+std::optional<std::string_view> Elf::str_symbol(uint32_t off) const
 {
-    if (!m_outer.m_symtab_info)
-        throw std::runtime_error("Attempted to iterate over symbols on an executable without a symbol table! (is it stripped?)");
+    if (!m_strtab || off > m_strtab->offset)
+        return std::nullopt;
 
-    return Iterator(Symbol::from_addr(m_outer.m_fileptr + m_outer.m_symtab_info->first));
+    const char *str = reinterpret_cast<const char*>(this->m_fileptr + m_strtab->offset + off);
+    return std::string_view(str);
 }
 
-template<>
-ElfIterator<Symbol>::Iterator ElfIterator<Symbol>::end() const
+ElfIterator<Symbol> Elf::SymbolInfo::begin() const
 {
-    if (!m_outer.m_symtab_info)
+    if (!m_symtab)
         throw std::runtime_error("Attempted to iterate over symbols on an executable without a symbol table! (is it stripped?)");
 
-    return Iterator(Symbol::from_addr(m_outer.m_fileptr + m_outer.m_symtab_info->first + m_outer.m_symtab_info->second));
+    return ElfIterator(Symbol::from_addr(m_outer.m_fileptr + m_symtab->offset));
 }
 
-template<>
-Symbol* ElfIterator<Symbol>::at(size_t idx) const
+ElfIterator<Symbol> Elf::SymbolInfo::end() const
 {
-    if (!m_outer.m_symtab_info)
+    if (!m_symtab)
         throw std::runtime_error("Attempted to iterate over symbols on an executable without a symbol table! (is it stripped?)");
 
-    size_t symbol_count = m_outer.m_symtab_info->second / sizeof(Symbol);
+    return ElfIterator(Symbol::from_addr(m_outer.m_fileptr + m_symtab->offset + m_symtab->size));
+}
+
+Symbol* Elf::SymbolInfo::at(size_t idx) const
+{
+    if (!m_symtab)
+        throw std::runtime_error("Attempted to iterate over symbols on an executable without a symbol table! (is it stripped?)");
+
+    size_t symbol_count = m_symtab->size / sizeof(Symbol);
     if (idx > symbol_count)
         return nullptr;
 
     return Symbol::from_addr(
-        m_outer.m_fileptr + m_outer.m_symtab_info->first + sizeof(Symbol)*idx
+        m_outer.m_fileptr + m_symtab->offset + sizeof(Symbol)*idx
     ); 
 }
 
@@ -207,51 +214,13 @@ SymbolType Symbol::type() const
     return SymbolType(this->info & 0x0F);
 }
 
-std::optional<std::string_view> Elf::str_section(uint32_t off) const
-{
-    SectionHeader* strtab = this->sections().at(this->header->shstrndx);
-    if (!strtab)
-        return std::nullopt;
-
-    assert(strtab->type == SectionType::SHT_STRTAB);
-
-    const char *str = reinterpret_cast<const char*>(this->m_fileptr + strtab->offset + off);
-    return std::string_view(str);
-}
-
-std::optional<std::string_view> Elf::str_symbol(uint32_t off) const
-{
-    auto it = std::find_if(sections().begin(), sections().end(), 
-                           [this](const SectionHeader& sh) {  return sh.str_name(*this) == ".strtab"; });
-
-    if (it == sections().end())
-        return std::nullopt;
-
-    const char *str = reinterpret_cast<const char*>(this->m_fileptr + it->offset + off);
-    return std::string_view(str);
-}
-
-void Elf::init_symtab_info() noexcept
-{
-    auto it = std::find_if(sections().begin(), sections().end(), 
-                           [](SectionHeader sh) { return sh.type == SHT_SYMTAB; });
-
-    if (it == sections().end()) {
-        m_symtab_info = std::nullopt;
-        return;
-    }
-
-    m_symtab_info = std::make_pair(it->offset, it->size);
-}
-
-
 void *Elf::vaddr_to_fileptr(void *addr) const
 {
     uint64_t iaddr = (uint64_t)addr;
-    auto it = std::find_if(prog_headers().begin(), prog_headers().end(), 
+    auto it = std::find_if(prog_headers.begin(), prog_headers.end(), 
                            [iaddr](const ProgramHeader& ph) { return iaddr > ph.vaddr && iaddr < (ph.vaddr + ph.memsz); });
 
-    if (it == prog_headers().end())
+    if (it == prog_headers.end())
         return nullptr; 
 
     return m_fileptr + iaddr - it->vaddr + it->offset;

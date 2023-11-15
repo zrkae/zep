@@ -254,54 +254,84 @@ public:
 
     ElfHeader *header;
 
-    // Generic iterator over various ELF structures
-    template <typename ValueType>
-    requires    std::same_as<ValueType, ProgramHeader>
-             || std::same_as<ValueType, SectionHeader>
-             || std::same_as<ValueType, Symbol>
-    class ElfIterator {
-    public:
-        ElfIterator() = delete;
+    // Generic iterator for stuff like Sections, ProgramHeaders and Symbols.
+    // (assumes contiguity of memory etc. etc.)
+    template<typename ValueType>
+    struct ElfIterator {
+        using iterator_category = std::forward_iterator_tag;
+        using difference_type = std::ptrdiff_t;
+        using value_type = ValueType;
+        using pointer = value_type*;
+        using reference = value_type&;
 
-        explicit ElfIterator(const Elf& outer)
-        : m_outer(outer) {}
+        ElfIterator() = default;
+        ElfIterator(const ElfIterator&) = default;
 
-        struct Iterator {
-            using iterator_category = std::forward_iterator_tag;
-            using difference_type = std::ptrdiff_t;
-            using value_type = ValueType;
-            using pointer = value_type*;
-            using reference = value_type&;
+        ElfIterator(pointer ptr): m_ptr(ptr) {}
 
-            Iterator() = default;
-            Iterator(const Iterator&) = default;
+        reference operator*() const { return *m_ptr; }
+        pointer operator->() const { return m_ptr; }
 
-            Iterator(pointer ptr): m_ptr(ptr) {}
+        ElfIterator& operator++() { m_ptr++; return *this; }  
+        ElfIterator operator++(int) { ElfIterator tmp = *this; ++(*this); return tmp; }
 
-            reference operator*() const { return *m_ptr; }
-            pointer operator->() const { return m_ptr; }
-
-            Iterator& operator++() { m_ptr++; return *this; }  
-            Iterator operator++(int) { Iterator tmp = *this; ++(*this); return tmp; }
-
-            friend bool operator== (const Iterator& a, const Iterator& b) { return a.m_ptr == b.m_ptr; }
-            friend bool operator!= (const Iterator& a, const Iterator& b) { return !(a == b); }
-        private:
-            pointer m_ptr; 
-        };
-        static_assert(std::forward_iterator<Iterator>);
-
-        Iterator begin() const;
-        Iterator end() const;
-
-        [[nodiscard]] ValueType* at(size_t idx) const;
+        friend bool operator== (const ElfIterator& a, const ElfIterator& b) { return a.m_ptr == b.m_ptr; }
+        friend bool operator!= (const ElfIterator& a, const ElfIterator& b) { return !(a == b); }
     private:
-        const Elf& m_outer;
+        pointer m_ptr; 
     };
 
-    ElfIterator<ProgramHeader> prog_headers() const;
-    ElfIterator<SectionHeader> sections() const;
-    ElfIterator<Symbol> symbols() const;
+    class ElfRefHolder {
+    public:
+        ElfRefHolder() = delete;
+        ElfRefHolder(const Elf& elf): m_outer(elf) {};
+        [[maybe_unused]] const Elf& m_outer;
+    };
+
+    class SectionInfo: ElfRefHolder {
+    public:
+        SectionInfo(const Elf& elf): ElfRefHolder(elf) {} 
+
+        [[nodiscard]] SectionHeader* at(size_t idx) const;
+
+        ElfIterator<SectionHeader> begin() const;
+        ElfIterator<SectionHeader> end() const;
+        static_assert(std::forward_iterator<ElfIterator<SectionInfo>>);
+    };
+
+    class ProgramHeaderInfo: ElfRefHolder {
+    public:
+        ProgramHeaderInfo(const Elf& elf): ElfRefHolder(elf) {};
+
+        [[nodiscard]] ProgramHeader* at(size_t idx) const;
+
+        ElfIterator<ProgramHeader> begin() const;
+        ElfIterator<ProgramHeader> end() const;
+        static_assert(std::forward_iterator<ElfIterator<ProgramHeaderInfo>>);
+    };
+
+    class SymbolInfo: ElfRefHolder {
+    public:
+        SymbolInfo(const Elf& elf): ElfRefHolder(elf) {};
+
+        [[nodiscard]] Symbol* at(size_t idx) const;
+
+        ElfIterator<Symbol> begin() const;
+        ElfIterator<Symbol> end() const;
+        static_assert(std::forward_iterator<ElfIterator<SymbolInfo>>);
+
+        friend class Elf;
+    private:
+        // NOTE! this is initialized in Elf::elf_common_init() instead of the constructor of this object! (ordering reasons)
+        struct m_symtabinfo_t {
+            uint64_t offset; // offset in file
+            uint64_t size;   // size in file 
+        }; std::optional<m_symtabinfo_t> m_symtab;
+    };
+
+    ProgramHeaderInfo prog_headers { *this };
+    SectionInfo sections { *this };
+    SymbolInfo symbols { *this };
 
     // these functions return the string corresponding to offset `off` in the section or symbol string table
     [[nodiscard]] std::optional<std::string_view> str_section(uint32_t off) const;
@@ -313,16 +343,16 @@ public:
     [[nodiscard]] void *vaddr_to_fileptr(void *addr) const;
     [[nodiscard]] void *fileoffset_to_vaddr(void *fileptr) const;
 private:
+    struct m_strtabinfo_t {
+        uint64_t offset; // offset in file
+        uint64_t size;   // size in file 
+    }; std::optional<m_strtabinfo_t> m_strtab;
+
     unsigned char *m_fileptr;
     size_t m_filesize;
 
     // validates (checks magic) and finishes initialization. called by constructors.
     void elf_common_init();
-
-    // finds the symbol table in the sections and saves its offset and size inside the structure
-    void init_symtab_info() noexcept;
-    // pair<offset, size>
-    std::optional<std::pair<uint64_t, uint64_t>> m_symtab_info;
 };
 
 
