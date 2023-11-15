@@ -7,6 +7,7 @@
 #include <format>
 #include <concepts>
 #include <iterator>
+#include <functional>
 
 namespace elf {
 
@@ -96,7 +97,7 @@ struct ElfHeader {
 
     [[nodiscard]] static ElfHeader *from_addr(void *addr);
 };
-static_assert(sizeof(ElfHeader) == 0x40);
+static_assert(sizeof(ElfHeader) == 64);
 
 // -------------
 // ProgramHeader
@@ -133,7 +134,7 @@ struct ProgramHeader {
 
     [[nodiscard]] static ProgramHeader *from_addr(void *addr);
 };
-static_assert(sizeof(ProgramHeader) == 0x38);
+static_assert(sizeof(ProgramHeader) == 56);
 
 
 // -------------
@@ -184,7 +185,7 @@ struct SectionHeader {
     
     [[nodiscard]] static SectionHeader *from_addr(void *addr);
 };
-static_assert(sizeof(SectionHeader) == 0x40);
+static_assert(sizeof(SectionHeader) == 64);
 
 // -------------
 // Symbols 
@@ -225,7 +226,56 @@ struct Symbol {
 
     [[nodiscard]] static Symbol *from_addr(void *addr);
 };
-static_assert(sizeof(Symbol) == 0x18);
+static_assert(sizeof(Symbol) == 24);
+
+// -------------
+// Relocations 
+
+// https://refspecs.linuxbase.org/elf/x86_64-abi-0.98.pdf
+enum RelocationType: uint64_t {
+    R_X86_64_NONE = 0,
+    R_X86_64_64 = 1,
+    R_X86_64_PC32 = 2,
+    R_X86_64_GOT32 = 3,
+    R_X86_64_PLT32 = 4,
+    R_X86_64_COPY = 5,
+    R_X86_64_GLOB_DAT = 6,
+    R_X86_64_JUMP_SLOT = 7,
+    R_X86_64_RELATIVE = 8,
+    R_X86_64_GOTPCREL = 9,
+    R_X86_64_32 = 10,
+    R_X86_64_32S = 11,
+    R_X86_64_16 = 12,
+    R_X86_64_PC16 = 13,
+    R_X86_64_8 = 14,
+    R_X86_64_PC8 = 15,
+    R_X86_64_DPTMOD64 = 16,
+    R_X86_64_DTPOFF64 = 17,
+    R_X86_64_TPOFF64 = 18,
+    R_X86_64_TLSGD = 19,
+    R_X86_64_TLSLD = 20,
+    R_X86_64_DTPOFF32 = 21,
+    R_X86_64_GOTTPOFF = 22,
+    R_X86_64_TPOFF32 = 23,
+    R_X86_64_PC64 = 24,
+    R_X86_64_GOTOFF64 = 25,
+    R_X86_64_GOTPC32 = 26,
+    R_X86_64_SIZE32 = 32,
+    R_X86_64_SIZE64 = 33
+};
+
+struct Rela {
+    uint64_t offset;
+    uint64_t info;
+    uint64_t addend;
+
+    [[nodiscard]] uint64_t symbol_idx() const { return info >> 32; };
+    [[nodiscard]] RelocationType type() const { return RelocationType(info & 0xffffffffL); };
+    [[nodiscard]] uint64_t info_value() const { return (symbol_idx() << 32) + ((type()) & 0xffffffffL); };
+
+    [[nodiscard]] static Rela *from_addr(void *addr);
+};
+static_assert(sizeof(Symbol) == 24);
 
 // -------------
 // TODO: Dynamic  
@@ -329,9 +379,27 @@ public:
         }; std::optional<m_symtabinfo_t> m_symtab;
     };
 
+    // RelocationInfo's only constructors requires a string, which will be used to choose among the RELA type sections.
+    class RelocationInfo: ElfRefHolder {
+    public:
+        RelocationInfo(const Elf& elf, std::string_view name);
+
+        ElfIterator<Rela> begin() const;
+        ElfIterator<Rela> end() const;
+        static_assert(std::forward_iterator<ElfIterator<ProgramHeaderInfo>>);
+    private:
+        const std::string m_name;
+        struct m_relasection_t {
+            uint64_t offset; // offset in file
+            uint64_t size;   // size in file 
+        }; std::optional<m_relasection_t> m_section;
+    };
+
     ProgramHeaderInfo prog_headers { *this };
     SectionInfo sections { *this };
     SymbolInfo symbols { *this };
+    std::function<RelocationInfo(std::string_view)> relocations = 
+                [this](std::string_view name) { return RelocationInfo(*this, name); };
 
     // these functions return the string corresponding to offset `off` in the section or symbol string table
     [[nodiscard]] std::optional<std::string_view> str_section(uint32_t off) const;

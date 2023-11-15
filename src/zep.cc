@@ -6,6 +6,7 @@
 
 #include <cstring>
 #include <fcntl.h>
+#include <stdexcept>
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <assert.h>
@@ -30,6 +31,11 @@ SectionHeader* SectionHeader::from_addr(void *addr)
 Symbol* Symbol::from_addr(void *addr) 
 {
     return reinterpret_cast<Symbol*>(addr);
+}
+
+Rela* Rela::from_addr(void *addr) 
+{
+    return reinterpret_cast<Rela*>(addr);
 }
 
 // At this point m_fileptr and m_filesize are guranteed to be initialized, this is the 'second stage' initialization
@@ -101,6 +107,8 @@ Elf::~Elf()
 template<typename T>
 using ElfIterator = Elf::ElfIterator<T>;
 
+// ------------
+// ProgramHeaders
 ElfIterator<ProgramHeader> Elf::ProgramHeaderInfo::begin() const
 {
     return ElfIterator(ProgramHeader::from_addr(m_outer.m_fileptr + m_outer.header->phoff));
@@ -121,7 +129,8 @@ ProgramHeader* Elf::ProgramHeaderInfo::at(size_t idx) const
     ); 
 }
 
-// SectionInfo
+// ------------
+// Sections
 ElfIterator<SectionHeader> Elf::SectionInfo::begin() const
 {
     return ElfIterator(SectionHeader::from_addr(m_outer.m_fileptr + m_outer.header->shoff));
@@ -154,6 +163,13 @@ std::optional<std::string_view> Elf::str_section(uint32_t off) const
     return std::string_view(str);
 }
 
+std::optional<std::string_view> SectionHeader::str_name(const Elf& elf) const
+{
+    return elf.str_section(this->name);
+}
+
+// ------------
+// Symbols
 std::optional<std::string_view> Elf::str_symbol(uint32_t off) const
 {
     if (!m_strtab || off > m_strtab->offset)
@@ -193,12 +209,6 @@ Symbol* Elf::SymbolInfo::at(size_t idx) const
     ); 
 }
 
-// other Struct/Class member functions (mostly declared below because of some template specialization bs)
-std::optional<std::string_view> SectionHeader::str_name(const Elf& elf) const
-{
-    return elf.str_section(this->name);
-}
-
 std::optional<std::string_view> Symbol::str_name(const Elf& elf) const
 {
     return elf.str_symbol(this->name);
@@ -214,6 +224,41 @@ SymbolType Symbol::type() const
     return SymbolType(this->info & 0x0F);
 }
 
+// -----------
+// Relocations
+
+Elf::RelocationInfo::RelocationInfo(const Elf& elf, std::string_view name)
+: ElfRefHolder(elf), m_name(name) 
+{
+    auto it = std::find_if(elf.sections.begin(), elf.sections.end(), 
+                           [&](const SectionHeader& s) {
+                             auto str_name = s.str_name(elf).value_or("");
+                             return str_name.starts_with(".rela") && str_name.ends_with(name);
+                           });
+
+    if (it == elf.sections.end())
+        throw std::runtime_error(std::format("No matching RELA sections found for: '{}'", name));
+
+    m_section = {
+        .offset = it->offset,
+        .size = it->size,
+    };
+}
+
+ElfIterator<Rela> Elf::RelocationInfo::begin() const
+{
+    auto info = m_section.value_or(m_relasection_t{0,0});
+    return ElfIterator(Rela::from_addr(m_outer.fileptr() + info.offset));
+}
+
+ElfIterator<Rela> Elf::RelocationInfo::end() const
+{
+    auto info = m_section.value_or(m_relasection_t{0,0});
+    return ElfIterator(Rela::from_addr(m_outer.fileptr() + info.offset + info.size));
+}
+
+// -----------
+// Misc elf
 void *Elf::vaddr_to_fileptr(void *addr) const
 {
     uint64_t iaddr = (uint64_t)addr;
