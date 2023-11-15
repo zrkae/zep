@@ -9,13 +9,15 @@
 #include <iterator>
 #include <functional>
 
-namespace elf {
 
+namespace elf {
 class Elf;
+
+// boilerplate macros
+#define FN_FROM_ADDR(type) [[nodiscard]] static type* from_addr(void *addr) { return reinterpret_cast<type*>(addr); }
 
 // ---------
 // ElfHeader
-
 constexpr std::array<unsigned char, 4> MAGIC = {0x7F, 'E', 'L', 'F'};
 
 enum ElfClass: unsigned char {
@@ -95,7 +97,7 @@ struct ElfHeader {
     uint16_t shnum; // number of section header entries
     uint16_t shstrndx; // the index of the section header entry containing ascii encoded section names
 
-    [[nodiscard]] static ElfHeader *from_addr(void *addr);
+    FN_FROM_ADDR(ElfHeader)
 };
 static_assert(sizeof(ElfHeader) == 64);
 
@@ -132,7 +134,7 @@ struct ProgramHeader {
     uint64_t memsz; // size in memory
     uint64_t align;
 
-    [[nodiscard]] static ProgramHeader *from_addr(void *addr);
+    FN_FROM_ADDR(ProgramHeader)
 };
 static_assert(sizeof(ProgramHeader) == 56);
 
@@ -183,7 +185,7 @@ struct SectionHeader {
 
     [[nodiscard]] std::optional<std::string_view> str_name(const Elf& elf) const; // this.name -> string from string table
     
-    [[nodiscard]] static SectionHeader *from_addr(void *addr);
+    FN_FROM_ADDR(SectionHeader)
 };
 static_assert(sizeof(SectionHeader) == 64);
 
@@ -224,7 +226,7 @@ struct Symbol {
     [[nodiscard]] SymbolBinding binding() const;
     [[nodiscard]] SymbolType type() const;
 
-    [[nodiscard]] static Symbol *from_addr(void *addr);
+    FN_FROM_ADDR(Symbol)
 };
 static_assert(sizeof(Symbol) == 24);
 
@@ -273,7 +275,7 @@ struct Rela {
     [[nodiscard]] RelocationType type() const { return RelocationType(info & 0xffffffffL); };
     [[nodiscard]] uint64_t info_value() const { return (symbol_idx() << 32) + ((type()) & 0xffffffffL); };
 
-    [[nodiscard]] static Rela *from_addr(void *addr);
+    FN_FROM_ADDR(Rela)
 };
 static_assert(sizeof(Symbol) == 24);
 
@@ -440,4 +442,5 @@ private:
     std::string m_msg;
 };
 
+#undef FN_FROM_ADDR
 } // namespace elf

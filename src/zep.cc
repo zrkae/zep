@@ -13,31 +13,6 @@
 
 namespace elf {
 
-ElfHeader* ElfHeader::from_addr(void *addr)
-{
-    return reinterpret_cast<ElfHeader*>(addr);
-}
-
-ProgramHeader* ProgramHeader::from_addr(void *addr) 
-{
-    return reinterpret_cast<ProgramHeader*>(addr);
-}
-
-SectionHeader* SectionHeader::from_addr(void *addr) 
-{
-    return reinterpret_cast<SectionHeader*>(addr);
-}
-
-Symbol* Symbol::from_addr(void *addr) 
-{
-    return reinterpret_cast<Symbol*>(addr);
-}
-
-Rela* Rela::from_addr(void *addr) 
-{
-    return reinterpret_cast<Rela*>(addr);
-}
-
 // At this point m_fileptr and m_filesize are guranteed to be initialized, this is the 'second stage' initialization
 // common for all constructors.
 void Elf::elf_common_init()
@@ -101,9 +76,30 @@ Elf::~Elf()
     munmap(m_fileptr, m_filesize);
 }
 
+// -----------
+// Misc elf
+void *Elf::vaddr_to_fileptr(void *addr) const
+{
+    uint64_t iaddr = (uint64_t)addr;
+    auto it = std::find_if(prog_headers.begin(), prog_headers.end(), 
+                           [iaddr](const ProgramHeader& ph) { return iaddr > ph.vaddr && iaddr < (ph.vaddr + ph.memsz); });
+
+    if (it == prog_headers.end())
+        return nullptr; 
+
+    return m_fileptr + iaddr - it->vaddr + it->offset;
+}
+
+void *Elf::fileoffset_to_vaddr(void *) const
+{
+    assert(0 && "TODO: Not implemented");
+}
+
 // Iterators for the Elf class
-// !TODO: add checks like for the Symbol specialization for others (they are not guaranteed to be present in the binary I think)
+// TODO: add checks like for the Symbol specialization for others (they are not guaranteed to be present in the binary I think)
 //        Or maybe just return empty iterator for all of them? idk
+// TODO: Decide on a consistent way to handle errors. (maybe return std::nullopt and never throw when optional and
+//       otherwise throw?)
 template<typename T>
 using ElfIterator = Elf::ElfIterator<T>;
 
@@ -255,25 +251,6 @@ ElfIterator<Rela> Elf::RelocationInfo::end() const
 {
     auto info = m_section.value_or(m_relasection_t{0,0});
     return ElfIterator(Rela::from_addr(m_outer.fileptr() + info.offset + info.size));
-}
-
-// -----------
-// Misc elf
-void *Elf::vaddr_to_fileptr(void *addr) const
-{
-    uint64_t iaddr = (uint64_t)addr;
-    auto it = std::find_if(prog_headers.begin(), prog_headers.end(), 
-                           [iaddr](const ProgramHeader& ph) { return iaddr > ph.vaddr && iaddr < (ph.vaddr + ph.memsz); });
-
-    if (it == prog_headers.end())
-        return nullptr; 
-
-    return m_fileptr + iaddr - it->vaddr + it->offset;
-}
-
-void *Elf::fileoffset_to_vaddr(void *) const
-{
-    assert(0 && "TODO: Not implemented");
 }
 
 } // namespace elf
