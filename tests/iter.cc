@@ -6,7 +6,7 @@ using namespace elf;
 
 int main()
 {
-    Elf elf { "../tests/files/hello-world" };
+    Elf elf { TEST_FILE_DIR"hello-world" };
 
     uint64_t ph_offsets[] = {64, 792, 0, 4096, 8192, 11728, 11744, 824, 888, 824, 8212, 0, 11728};
 

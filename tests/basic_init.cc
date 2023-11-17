@@ -7,14 +7,14 @@ using namespace elf;
 int main()
 {
     try {
-        Elf elf { "../tests/files/hello-world" };
+        Elf elf { TEST_FILE_DIR"hello-world" };
     } catch(invalid_magic& e) {
         std::cerr << e.what() << "\n";
         return 1;
     }
 
     try {
-        Elf elf { "../tests/files/stripped" };
+        Elf elf { TEST_FILE_DIR"stripped" };
     } catch(std::exception& e) {
         std::cerr << e.what() << "\n";
         return 1;

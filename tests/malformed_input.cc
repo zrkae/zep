@@ -23,9 +23,9 @@ void expect_invalid_size(const char *file_name, const char *expected_message="")
 int main()
 {
     // TODO: don't compare strings, instead use seperate classes for the exceptions
-    expect_invalid_size("../tests/files/malformed_too_small", "Supplied ELF too small!");
-    expect_invalid_size("../tests/files/malformed_preserved_header", "Header table offset larger than file size.");
-    expect_invalid_size("../tests/files/malformed_offset_outofbounds", "Header table offset larger than file size.");
+    expect_invalid_size(TEST_FILE_DIR"malformed_too_small", "Supplied ELF too small!");
+    expect_invalid_size(TEST_FILE_DIR"malformed_preserved_header", "Header table offset larger than file size.");
+    expect_invalid_size(TEST_FILE_DIR"malformed_offset_outofbounds", "Header table offset larger than file size.");
 
     return 0;
 }

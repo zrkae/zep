@@ -6,7 +6,7 @@ using namespace elf;
 
 int main()
 {
-    Elf elf { "../tests/files/stripped" };
+    Elf elf { TEST_FILE_DIR"stripped" };
     assert(elf.sections.begin() == elf.sections.end());
     assert(elf.symbols.begin() == elf.symbols.end());
 }
