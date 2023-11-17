@@ -298,8 +298,8 @@ public:
     Elf operator=(const Elf& other) = delete;
 
     // no std::string view because it is not guaranteed to be null terminated and we need a c-string.
-    Elf(const std::string& file_path);
-    Elf(const char* file_path);
+    explicit Elf(const std::string& file_path);
+    explicit Elf(const char* file_path);
     Elf(void *ptr, size_t size);
 
     ~Elf();
@@ -319,7 +319,7 @@ public:
         ElfIterator() = default;
         ElfIterator(const ElfIterator&) = default;
 
-        ElfIterator(pointer ptr): m_ptr(ptr) {}
+        explicit ElfIterator(pointer ptr): m_ptr(ptr) {}
 
         reference operator*() const { return *m_ptr; }
         pointer operator->() const { return m_ptr; }
@@ -336,13 +336,13 @@ public:
     class ElfRefHolder {
     public:
         ElfRefHolder() = delete;
-        ElfRefHolder(const Elf& elf): m_outer(elf) {};
+        explicit ElfRefHolder(const Elf& elf): m_outer(elf) {};
         [[maybe_unused]] const Elf& m_outer;
     };
 
     class SectionInfo: ElfRefHolder {
     public:
-        SectionInfo(const Elf& elf): ElfRefHolder(elf) {} 
+        explicit SectionInfo(const Elf& elf): ElfRefHolder(elf) {} 
 
         [[nodiscard]] SectionHeader* at(size_t idx) const;
 
@@ -353,7 +353,7 @@ public:
 
     class ProgramHeaderInfo: ElfRefHolder {
     public:
-        ProgramHeaderInfo(const Elf& elf): ElfRefHolder(elf) {};
+        explicit ProgramHeaderInfo(const Elf& elf): ElfRefHolder(elf) {};
 
         [[nodiscard]] ProgramHeader* at(size_t idx) const;
 
@@ -364,7 +364,7 @@ public:
 
     class SymbolInfo: ElfRefHolder {
     public:
-        SymbolInfo(const Elf& elf): ElfRefHolder(elf) {};
+        explicit SymbolInfo(const Elf& elf): ElfRefHolder(elf) {};
 
         [[nodiscard]] Symbol* at(size_t idx) const;
 
@@ -384,7 +384,7 @@ public:
     // RelocationInfo's only constructors requires a string, which will be used to choose among the RELA type sections.
     class RelocationInfo: ElfRefHolder {
     public:
-        RelocationInfo(const Elf& elf, std::string_view name);
+        explicit RelocationInfo(const Elf& elf, std::string_view name);
 
         ElfIterator<Rela> begin() const;
         ElfIterator<Rela> end() const;
@@ -430,7 +430,7 @@ private:
 
 class invalid_magic : std::exception {
 public:
-    invalid_magic(const std::array<unsigned char, 4>& magic)
+    explicit invalid_magic(const std::array<unsigned char, 4>& magic)
     : m_msg(std::format("Invalid magic: [{:x}, {:x}, {:x}, {:x}]", 
                                magic[0], magic[1], magic[2], magic[3])) {};
 

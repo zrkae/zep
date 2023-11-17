@@ -1,6 +1,6 @@
 #include <iostream>
 #include <assert.h>
-#include "../src/elf-parser.hpp"
+#include "../src/zep.hpp"
 
 using namespace elf;
 
@@ -18,19 +18,19 @@ int main()
     std::string_view symbols[] = {"", "hello-world.c", "", "_DYNAMIC", "__GNU_EH_FRAME_HDR", "_GLOBAL_OFFSET_TABLE_", "__libc_start_main@GLIBC_2.34", "_ITM_deregisterTMCloneTable", "data_start", "puts@GLIBC_2.2.5", "_edata", "_fini", "__data_start", "__gmon_start__", "__dso_handle", "_IO_stdin_used", "_end", "_start", "__bss_start", "main", "__TMC_END__", "_ITM_registerTMCloneTable", "__cxa_finalize@GLIBC_2.2.5", "_init" };
 
     int i = 0;
-    for (const auto& ph : elf.prog_headers()) {
+    for (const auto& ph : elf.prog_headers) {
         assert(ph.offset == ph_offsets[i]); 
         i++;
     }
 
     i = 0;
-    for (const auto& section : elf.sections()) {
+    for (const auto& section : elf.sections) {
         assert(section.str_name(elf).value() == section_names[i]); 
         i++;
     }
 
     i = 0;
-    for (const auto& symbol : elf.symbols()) {
+    for (const auto& symbol : elf.symbols) {
         assert(symbol.str_name(elf).value() == symbols[i]); 
         i++;
     }
