@@ -13,3 +13,7 @@ ninja
 ```
 ninja test
 ```
+### cppcheck
+```
+ninja check
+```

@@ -316,7 +316,7 @@ public:
         using pointer = value_type*;
         using reference = value_type&;
 
-        ElfIterator() = default;
+        ElfIterator(): m_ptr(nullptr) {};
         ElfIterator(const ElfIterator&) = default;
 
         explicit ElfIterator(pointer ptr): m_ptr(ptr) {}

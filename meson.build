@@ -4,3 +4,6 @@ project('zep', 'cpp',
 
 subdir('src')
 subdir('tests')
+
+run_target('check',
+  command : 'tests/scripts/check.sh')
