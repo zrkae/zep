@@ -16,7 +16,7 @@ void expect_invalid_size(const char *file_name, const char *expected_message="")
             assert(!std::strcmp(expected_message, e.what()));
         return;
     }
-    std::cerr << "File: " << file_name << "expected invalid_file_size but got no exception\n";
+    std::cerr << "File: " << file_name << " expected invalid_file_size but got no exception\n";
     std::exit(1);
 }
 

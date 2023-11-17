@@ -404,6 +404,10 @@ public:
     std::function<RelocationInfo(std::string_view)> relocations = 
                 [this](std::string_view name) { return RelocationInfo(*this, name); };
 
+    [[nodiscard]] bool has_prog_headers() const { return !(this->prog_headers.begin() == this->prog_headers.end()); }
+    [[nodiscard]] bool has_sections() const { return !(this->sections.begin() == this->sections.end()); }
+    [[nodiscard]] bool has_symbols() const { return !(this->symbols.begin() == this->symbols.end()); }
+
     // these functions return the string corresponding to offset `off` in the section or symbol string table
     [[nodiscard]] std::optional<std::string_view> str_section(uint32_t off) const;
     [[nodiscard]] std::optional<std::string_view> str_symbol(uint32_t off) const;

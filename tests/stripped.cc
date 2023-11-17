@@ -7,6 +7,6 @@ using namespace elf;
 int main()
 {
     Elf elf { TEST_FILE_DIR"stripped" };
-    assert(elf.sections.begin() == elf.sections.end());
-    assert(elf.symbols.begin() == elf.symbols.end());
+    assert(!elf.has_sections());
+    assert(!elf.has_symbols());
 }
