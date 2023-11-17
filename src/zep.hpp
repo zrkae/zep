@@ -87,8 +87,8 @@ struct ElfHeader {
     ElfMachine machine;
     uint32_t version;
     uint64_t entry;
-    uint64_t phoff; // program header offset
-    uint64_t shoff; // section header offset
+    uint64_t phoff; // program header table offset
+    uint64_t shoff; // section header table offset
     uint32_t flags;
     uint16_t ehsize; // size of this header
     uint16_t phentsize; // size of a single program header entry
@@ -400,6 +400,7 @@ public:
     ProgramHeaderInfo prog_headers { *this };
     SectionInfo sections { *this };
     SymbolInfo symbols { *this };
+
     std::function<RelocationInfo(std::string_view)> relocations = 
                 [this](std::string_view name) { return RelocationInfo(*this, name); };
 
@@ -425,9 +426,7 @@ private:
     void elf_common_init();
 };
 
-
 // Exceptions
-
 class invalid_magic : std::exception {
 public:
     explicit invalid_magic(const std::array<unsigned char, 4>& magic)
@@ -440,6 +439,18 @@ public:
     };
 private:
     std::string m_msg;
+};
+
+class invalid_file_size : std::exception {
+public:
+    explicit invalid_file_size(const char *msg): m_msg(msg) {};
+
+    virtual const char *what() const noexcept 
+    {
+        return m_msg;
+    };
+private:
+    const char *m_msg;
 };
 
 #undef FN_FROM_ADDR

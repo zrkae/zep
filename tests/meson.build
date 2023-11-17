@@ -1,10 +1,12 @@
 tests = {
     'basic elf init': 'basic_init.cc',
     'iterators': 'iter.cc',
+    'malformed elf files': 'malformed_input.cc',
+    '\'sstrip\'ed file (no symbols or sections)': 'stripped.cc',
 }
 
 foreach name, source : tests
-                   # remove suffix .cc
-    exe = executable(source.substring(0, -3), source, link_with: libzep)
+    exe = executable(source.substring(0, -3), # remove suffix .cc
+                    source, link_with: libzep)
     test(name, exe)
 endforeach

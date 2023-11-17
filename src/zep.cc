@@ -23,6 +23,14 @@ void Elf::elf_common_init()
         throw invalid_magic(header->ident.magic); 
     }
 
+    // bounds sanity check
+    if (header->phoff > m_filesize || header->shoff > m_filesize ||
+        header->phoff + header->phnum*header->phentsize > m_filesize || 
+        header->shoff + header->shnum*header->shentsize > m_filesize)
+    {
+        throw invalid_file_size("Header table offset larger than file size.");
+    }
+
     if (header->ident.eclass != ElfClass::BIT_64) {
         munmap(m_fileptr, m_filesize);
         throw std::runtime_error("Non-64bit elf files are not supported yet."); 
@@ -55,6 +63,9 @@ Elf::Elf(const char* file_path)
     if (fstat(fd, &statbuf) < 0)
         throw std::runtime_error(std::format("Failed to fstat '{}': {}", file_path, strerror(errno)));
 
+    if (statbuf.st_size < static_cast<long>(sizeof(ElfHeader)))
+        throw invalid_file_size("Supplied ELF too small!");
+
     void *file_addr = mmap(nullptr, statbuf.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
     if (file_addr == MAP_FAILED)
         throw std::runtime_error(std::format("'mmap'ing file '{}' failed: {}", file_path, strerror(errno)));
@@ -80,7 +91,7 @@ Elf::~Elf()
 // Misc elf
 void *Elf::vaddr_to_fileptr(void *addr) const
 {
-    uint64_t iaddr = (uint64_t)addr;
+    uint64_t iaddr = reinterpret_cast<uint64_t>(addr);
     auto it = std::find_if(prog_headers.begin(), prog_headers.end(), 
                            [iaddr](const ProgramHeader& ph) { return iaddr > ph.vaddr && iaddr < (ph.vaddr + ph.memsz); });
 
@@ -96,10 +107,6 @@ void *Elf::fileoffset_to_vaddr(void *) const
 }
 
 // Iterators for the Elf class
-// TODO: add checks like for the Symbol specialization for others (they are not guaranteed to be present in the binary I think)
-//        Or maybe just return empty iterator for all of them? idk
-// TODO: Decide on a consistent way to handle errors. (maybe return std::nullopt and never throw when optional and
-//       otherwise throw?)
 template<typename T>
 using ElfIterator = Elf::ElfIterator<T>;
 
@@ -178,7 +185,7 @@ std::optional<std::string_view> Elf::str_symbol(uint32_t off) const
 ElfIterator<Symbol> Elf::SymbolInfo::begin() const
 {
     if (!m_symtab)
-        throw std::runtime_error("Attempted to iterate over symbols on an executable without a symbol table! (is it stripped?)");
+        return ElfIterator<Symbol>();
 
     return ElfIterator(Symbol::from_addr(m_outer.m_fileptr + m_symtab->offset));
 }
@@ -186,7 +193,7 @@ ElfIterator<Symbol> Elf::SymbolInfo::begin() const
 ElfIterator<Symbol> Elf::SymbolInfo::end() const
 {
     if (!m_symtab)
-        throw std::runtime_error("Attempted to iterate over symbols on an executable without a symbol table! (is it stripped?)");
+        return ElfIterator<Symbol>();
 
     return ElfIterator(Symbol::from_addr(m_outer.m_fileptr + m_symtab->offset + m_symtab->size));
 }
@@ -194,7 +201,7 @@ ElfIterator<Symbol> Elf::SymbolInfo::end() const
 Symbol* Elf::SymbolInfo::at(size_t idx) const
 {
     if (!m_symtab)
-        throw std::runtime_error("Attempted to iterate over symbols on an executable without a symbol table! (is it stripped?)");
+        return nullptr;
 
     size_t symbol_count = m_symtab->size / sizeof(Symbol);
     if (idx > symbol_count)
