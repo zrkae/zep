@@ -89,6 +89,11 @@ Elf::~Elf()
 
 // -----------
 // Misc elf
+bool Elf::is_pie() const 
+{
+    return header->type == ET_DYN;
+}
+
 void *Elf::vaddr_to_fileptr(void *addr) const
 {
     uint64_t iaddr = reinterpret_cast<uint64_t>(addr);

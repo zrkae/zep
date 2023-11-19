@@ -408,6 +408,8 @@ public:
     [[nodiscard]] bool has_sections() const { return !(this->sections.begin() == this->sections.end()); }
     [[nodiscard]] bool has_symbols() const { return !(this->symbols.begin() == this->symbols.end()); }
 
+    [[nodiscard]] bool is_pie() const;
+
     // these functions return the string corresponding to offset `off` in the section or symbol string table
     [[nodiscard]] std::optional<std::string_view> str_section(uint32_t off) const;
     [[nodiscard]] std::optional<std::string_view> str_symbol(uint32_t off) const;
